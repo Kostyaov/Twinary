@@ -4,6 +4,8 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "BACKEND_DIR=%SCRIPT_DIR%apps\backend"
 set "DESKTOP_DIR=%SCRIPT_DIR%apps\desktop"
+set "VENV_DIR=%SCRIPT_DIR%.venv"
+set "VENV_PYTHON=%VENV_DIR%\Scripts\python.exe"
 
 echo Starting BackupFlow...
 
@@ -34,6 +36,16 @@ if %ERRORLEVEL% NEQ 0 (
   exit /b 1
 )
 
+if not exist "%VENV_PYTHON%" (
+  echo Creating local Python virtual environment...
+  %PYTHON_CMD% -m venv "%VENV_DIR%"
+  if %ERRORLEVEL% NEQ 0 (
+    echo Failed to create Python virtual environment.
+    pause
+    exit /b 1
+  )
+)
+
 if not exist "%DESKTOP_DIR%\node_modules" (
   echo Installing desktop dependencies...
   pushd "%DESKTOP_DIR%"
@@ -47,7 +59,7 @@ if not exist "%DESKTOP_DIR%\node_modules" (
 )
 
 echo Starting backend...
-start "BackupFlow Backend" /D "%BACKEND_DIR%" cmd /k "%PYTHON_CMD% -m backupflow serve"
+start "BackupFlow Backend" /D "%BACKEND_DIR%" cmd /k ""%VENV_PYTHON%" -m backupflow serve"
 
 echo Opening BackupFlow desktop window...
 pushd "%DESKTOP_DIR%"

@@ -37,6 +37,14 @@ start-windows.bat
 
 These launchers start the Python backend and open the Tauri desktop interface.
 
+For a beginner-friendly Windows setup guide in Ukrainian, see:
+
+```text
+docs/install-windows-uk.md
+```
+
+The launchers create and use a local Python virtual environment in `.venv`, so BackupFlow does not install Python packages globally.
+
 ## Basic Workflow
 
 1. Click `New profile`.

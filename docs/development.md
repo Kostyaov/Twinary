@@ -24,6 +24,8 @@ start-macos.command
 start-windows.bat
 ```
 
+The launchers create `.venv` in the repository root and run the backend through that local virtual environment. Python packages should not be installed globally for BackupFlow.
+
 Manual startup is still useful while debugging:
 
 ```bash

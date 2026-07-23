@@ -537,7 +537,7 @@ function App() {
                   </button>
                 </div>
               </label>
-              <label className="checkbox-field" title={STRICT_VERIFICATION_HELP}>
+              <label className="checkbox-field">
                 <input
                   type="checkbox"
                   checked={profileForm.strict_verification}

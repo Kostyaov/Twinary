@@ -93,6 +93,8 @@ type ApiError = {
 const API_BASE_CANDIDATES = [8765, 18765, 28765, 38765, 48765].map((port) => `http://127.0.0.1:${port}`);
 const TERMINAL_JOB_STATUSES = new Set(["completed", "completed_with_errors", "failed", "cancelled"]);
 const TERMINAL_ANALYZE_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const STRICT_VERIFICATION_HELP =
+  "Checks content hashes for small non-media files when size matches but timestamps differ. Slower, but can avoid false differences. Large media files still use fast size/date comparison.";
 
 const EMPTY_PROFILE_FORM = {
   name: "",
@@ -494,7 +496,7 @@ function App() {
                 <input
                   value={profileForm.name}
                   onChange={(event) => setProfileForm((form) => ({ ...form, name: event.target.value }))}
-                  placeholder="Video Projects"
+                  placeholder="Name Project"
                 />
               </label>
               <label>
@@ -503,7 +505,6 @@ function App() {
                   <input
                     value={profileForm.local_path}
                     onChange={(event) => setProfileForm((form) => ({ ...form, local_path: event.target.value }))}
-                    placeholder="/Users/name/Projects"
                   />
                   <button
                     className="icon-button"
@@ -523,7 +524,6 @@ function App() {
                   <input
                     value={profileForm.external_path}
                     onChange={(event) => setProfileForm((form) => ({ ...form, external_path: event.target.value }))}
-                    placeholder="/Volumes/Drive/BackupFlow/Projects"
                   />
                   <button
                     className="icon-button"
@@ -537,7 +537,7 @@ function App() {
                   </button>
                 </div>
               </label>
-              <label className="checkbox-field">
+              <label className="checkbox-field" title={STRICT_VERIFICATION_HELP}>
                 <input
                   type="checkbox"
                   checked={profileForm.strict_verification}
@@ -545,7 +545,9 @@ function App() {
                     setProfileForm((form) => ({ ...form, strict_verification: event.target.checked }))
                   }
                 />
-                <span>Strict verification</span>
+                <span className="tooltip-anchor" tabIndex={0} data-tooltip={STRICT_VERIFICATION_HELP}>
+                  Strict verification
+                </span>
               </label>
             </div>
             <div className="actions-row">

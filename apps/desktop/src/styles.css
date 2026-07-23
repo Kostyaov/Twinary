@@ -323,6 +323,40 @@ dt,
   accent-color: #8ad7c1;
 }
 
+.tooltip-anchor {
+  position: relative;
+  width: fit-content;
+  cursor: help;
+  outline: none;
+}
+
+.tooltip-anchor::after {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 10;
+  width: min(280px, 72vw);
+  padding: 10px 12px;
+  border: 1px solid #384753;
+  border-radius: 8px;
+  color: #e8f0f4;
+  background: #0d1318;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  content: attr(data-tooltip);
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tooltip-anchor:hover::after,
+.tooltip-anchor:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .actions-row {
   display: flex;
   justify-content: flex-end;

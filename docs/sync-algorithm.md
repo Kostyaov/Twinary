@@ -1,29 +1,140 @@
-# Synchronization Algorithm
+# Алгоритм Синхронізації
 
-BackupFlow synchronizes two folder trees by relative path.
+BackupFlow синхронізує два дерева папок за відносними шляхами файлів.
 
-1. Load profile settings.
-2. Scan local and external roots in the background.
-3. Apply default and profile-specific exclusions.
-4. Build maps of normalized `relative_path -> file metadata`.
-5. Compare both maps.
-6. Generate actions:
-   - local-only file: copy local to external
-   - external-only file: copy external to local
-   - same size and modification time within filesystem tolerance: skip
-   - different size: copy the newest version unless both sides changed
-   - same size but different modification time: copy the newest version
-7. Detect conflicts using previous metadata from the last sync.
-8. Return an analyze plan for user confirmation.
-9. Execute only non-conflicting copy and update actions.
-10. Resolve conflicts with the default `Keep both` strategy:
-    - copy the older version to a `.backupflow-conflict-...` filename on both sides
-    - align the original path to the newer version
-    - record the conflict resolution in SQLite
-11. Store sync session summary, events, and refreshed file metadata.
+Профіль завжди має дві сторони:
 
-Relative paths are normalized to NFC before comparison so APFS/exFAT Unicode filename differences do not create repeated copy actions for visually identical names.
+- `local` - папка на комп'ютері;
+- `external` - папка на зовнішньому диску.
 
-BackupFlow allows a small modification-time tolerance to handle filesystem timestamp rounding. File size must still match before a file can be skipped.
+## Загальна Послідовність
 
-Strict verification may hash small files with the same size and different modification time. Large files and common media/archive formats use fast metadata comparison even in strict mode to avoid very slow repeated reads of video, audio, archives, and disk images.
+1. Завантажити профіль.
+2. Просканувати `local` папку.
+3. Просканувати `external` папку.
+4. Застосувати правила виключення.
+5. Побудувати карти `relative_path -> file metadata`.
+6. Нормалізувати Unicode-шляхи до NFC.
+7. Порівняти обидві карти.
+8. Створити analyze plan.
+9. Показати план користувачу.
+10. Виконати план тільки після `Synchronize`.
+11. Записати sync session, sync events і оновлену metadata в SQLite.
+
+`Analyze` не копіює файли. Він тільки готує план.
+
+## Metadata Файлу
+
+Для порівняння використовується:
+
+- відносний шлях;
+- сторона (`local` або `external`);
+- розмір у байтах;
+- час останнього редагування в nanoseconds;
+- optional `hash_xx64` для strict-перевірок.
+
+## Unicode Normalization
+
+Різні файлові системи можуть по-різному зберігати Unicode-імена файлів. Наприклад, APFS і exFAT можуть давати візуально однакові назви, але різні byte-представлення.
+
+BackupFlow нормалізує relative paths до NFC перед порівнянням, щоб такі файли не копіювалися повторно як нібито різні.
+
+## Ігноровані Файли
+
+За замовчуванням ігноруються типові системні файли:
+
+```text
+.DS_Store
+Thumbs.db
+desktop.ini
+._*
+```
+
+Такі файли не потрапляють у план синхронізації як звичайні дії, але враховуються в `ignored_count`.
+
+## Порівняння Файлів
+
+Для кожного relative path:
+
+- файл є тільки локально - `copy local to external`;
+- файл є тільки на external - `copy external to local`;
+- розмір і дата редагування збігаються з невеликим допуском - `skip`;
+- обидві сторони змінилися з часу останньої metadata - `conflict`;
+- розмір різний - новіша сторона оновлює старішу;
+- розмір однаковий, але дата різна - новіша сторона оновлює старішу;
+- у strict-режимі для малих не-медійних файлів може додатково перевірятися content hash.
+
+## Допуск Для Дати Редагування
+
+Файлові системи мають різну точність часу. Щоб не копіювати один і той самий файл повторно через мікроскопічну різницю timestamp-ів, BackupFlow використовує невеликий допуск:
+
+```text
+100 ms
+```
+
+Якщо різниця часу в межах цього допуску і розмір однаковий, файл вважається однаковим.
+
+## Strict Verification
+
+`Strict verification` потрібен для випадків, коли розмір файлу однаковий, а дата редагування різна.
+
+У цьому режимі BackupFlow може порахувати `xxHash64` для обох файлів. Якщо хеш однаковий, файл пропускається, навіть якщо timestamp-и відрізняються.
+
+Щоб аналіз не ставав дуже повільним, strict-хешування обмежене:
+
+- хешуються тільки файли до `100 MB`;
+- відео, аудіо, архіви, backup-файли й disk images не хешуються;
+- для таких файлів використовується швидке порівняння за розміром і датою.
+
+Приклади fast-metadata розширень:
+
+```text
+.mp4 .mov .mkv .mp3 .wav .zip .rar .7z .tar .gz .iso .dmg
+```
+
+## Conflicts
+
+Конфлікт означає, що обидві сторони змінилися з моменту останньої відомої metadata.
+
+У версії `1.0.0` default-стратегія:
+
+```text
+Keep both
+```
+
+Для конфлікту BackupFlow:
+
+1. створює conflict-copy з суфіксом `.backupflow-conflict-...`;
+2. вирівнює основний шлях до новішої версії;
+3. записує інформацію про conflict resolution у SQLite.
+
+Головна ідея: не втратити жодну версію файлу.
+
+## Копіювання
+
+Для копіювання використовуються системні інструменти:
+
+- macOS/Linux: `rsync -a`;
+- Windows: `robocopy`.
+
+Це краще, ніж ручне копіювання байтів у Python, бо системні інструменти стабільніше працюють з великими файлами, датами й атрибутами.
+
+## Prepared Plan
+
+Після `Analyze` backend повертає `plan_id`.
+
+Коли користувач одразу натискає `Synchronize`, UI передає цей `plan_id`, і backend виконує вже підготовлений план.
+
+Якщо план не переданий або не підходить, sync engine робить новий аналіз.
+
+## Cancel
+
+Аналіз і синхронізацію можна перервати.
+
+Зупинка працює кооперативно:
+
+- scanner перевіряє cancel flag між файловими кроками;
+- analyzer перевіряє cancel flag між порівняннями і під час hashing;
+- executor перевіряє cancel flag між діями.
+
+Тому `Stop` може спрацювати з невеликою затримкою, особливо якщо зараз копіюється великий файл.

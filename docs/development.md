@@ -1,32 +1,74 @@
-# Development
+# Розробка
+
+Цей документ описує локальний запуск, перевірки й корисні debug-команди для BackupFlow.
+
+## Структура Проєкту
+
+```text
+apps/backend
+apps/desktop
+apps/desktop/src-tauri
+docs
+start-macos.command
+start-windows.bat
+```
+
+Основні частини:
+
+- `apps/backend` - Python backend, CLI, sync engine, SQLite repositories;
+- `apps/desktop` - React + TypeScript UI;
+- `apps/desktop/src-tauri` - Tauri desktop shell;
+- `docs` - документація;
+- `start-macos.command` і `start-windows.bat` - development launcher-и.
+
+## Нормальний Development-Запуск
+
+На macOS:
+
+```text
+start-macos.command
+```
+
+На Windows:
+
+```text
+start-windows.bat
+```
+
+Launcher-и створюють `.venv` у корені репозиторію і запускають backend через локальний Python:
+
+```text
+.venv/bin/python
+.venv\Scripts\python.exe
+```
+
+Не встановлюй Python-залежності BackupFlow глобально через `pip install`.
 
 ## Backend
+
+Ручні backend-команди:
 
 ```bash
 cd apps/backend
 python3 -m compileall backupflow tests
 python3 -m pytest tests
 python3 -m backupflow init-db
-python3 -m backupflow serve
+python3 -m backupflow list-profiles
+python3 -m backupflow create-profile Demo /path/to/local /path/to/external
+python3 -m backupflow analyze PROFILE_ID
 python3 -m backupflow sync PROFILE_ID
+python3 -m backupflow serve
 ```
 
-Use `BACKUPFLOW_DB_PATH=/path/to/dev.sqlite3` to isolate local smoke tests.
+Для ізольованої бази:
+
+```bash
+BACKUPFLOW_DB_PATH=/tmp/backupflow-dev.sqlite3 python3 -m backupflow serve
+```
 
 ## Desktop
 
-The desktop app is prepared as a Tauri + React application.
-
-Use the root launcher files for normal development startup:
-
-```text
-start-macos.command
-start-windows.bat
-```
-
-The launchers create `.venv` in the repository root and run the backend through that local virtual environment. Python packages should not be installed globally for BackupFlow.
-
-Manual startup is still useful while debugging:
+Ручний запуск frontend/Tauri:
 
 ```bash
 cd apps/desktop
@@ -35,39 +77,139 @@ npm run build
 npm run tauri dev
 ```
 
-In development mode, React expects the Python backend at:
+Tauri dev server показує локальну адресу Vite, зазвичай:
 
 ```text
-http://127.0.0.1:8765
+http://localhost:1420/
 ```
 
-Profiles can be created from the UI with `New profile`. Use the folder buttons to select local and external folders with the system picker, or type paths manually. Profiles can also be created through the backend CLI:
-
-```bash
-cd apps/backend
-python3 -m backupflow create-profile Demo /path/to/local /path/to/external
-```
-
-Deleting a profile from the UI removes the profile, metadata, and history rows from SQLite. It never deletes synchronized files from the local or external folders.
-
-Synchronization from the UI runs as a backend job:
+Backend слухає `127.0.0.1`, починаючи з порту `8765`, і може перейти на fallback-порти:
 
 ```text
-GET /analyze?profile_id=...
+8765
+18765
+28765
+38765
+48765
+```
+
+Frontend перевіряє ці порти через `/health` і підключається до доступного backend-а.
+
+## API Для UI
+
+Профілі:
+
+```text
+GET    /profiles
+POST   /profiles
+DELETE /profiles/{profile_id}
+```
+
+Аналіз:
+
+```text
+GET  /analyze?profile_id=...
 POST /analyze
-GET /analyze-jobs/{job_id}
+GET  /analyze-jobs/{job_id}
 POST /analyze-jobs/{job_id}/cancel
+```
+
+Синхронізація:
+
+```text
 POST /synchronize
-GET /sync-jobs/{job_id}
+GET  /sync-jobs/{job_id}
 POST /sync-jobs/{job_id}/cancel
 ```
 
-The progress panel polls the analyze/sync job endpoints and shows the current stage, elapsed time, current path, processed actions, and copied bytes. During scanning/analyzing, the total amount of work may be unknown, so the UI shows an indeterminate progress animation instead of a fixed percentage.
+`POST /analyze` повертає job snapshot. UI потім polling-ом читає `/analyze-jobs/{job_id}`.
 
-Analyze responses include a `plan_id`. When the UI calls `POST /synchronize` with that `plan_id`, the backend uses the prepared plan instead of running analysis again. If no valid `plan_id` is supplied, synchronization falls back to building a fresh plan.
+Коли analysis job завершується, результат містить `plan_id`. UI передає цей `plan_id` у `POST /synchronize`, щоб backend не робив аналіз повторно.
 
-Scanner and analyzer debug logs can be enabled temporarily:
+## UI Поведінка
+
+Під час активного аналізу або синхронізації:
+
+- кнопки `Analyze` і `Synchronize` заблоковані;
+- створення/видалення профілю заблоковане;
+- вибір папок заблокований;
+- доступна кнопка `Stop`;
+- progress panel показує stage, elapsed time, current path, actions і bytes.
+
+Під час scanning/analyzing загальний обсяг роботи може бути невідомий, тому progress bar може бути indeterminate.
+
+## Debug Logs
+
+Scanner і analyzer мають debug-логування через environment variables:
 
 ```bash
 BACKUPFLOW_SCAN_DEBUG=1 BACKUPFLOW_SCAN_VERBOSE=1 BACKUPFLOW_ANALYZE_DEBUG=1 python3 -m backupflow serve
+```
+
+Значення:
+
+- `BACKUPFLOW_SCAN_DEBUG=1` - показує етапи сканування;
+- `BACKUPFLOW_SCAN_VERBOSE=1` - показує окремі entries під час сканування;
+- `BACKUPFLOW_ANALYZE_DEBUG=1` - показує порівняння і hash/fast-metadata рішення.
+
+На Windows при запуску через `start-windows.bat` backend прихований, а логи пишуться в:
+
+```text
+.backupflow\backend.log
+.backupflow\backend-error.log
+```
+
+## Перевірки Перед Комітом
+
+З кореня репозиторію:
+
+```bash
+python3 -m compileall apps/backend/backupflow apps/backend/tests
+pytest apps/backend/tests
+```
+
+З frontend-папки:
+
+```bash
+cd apps/desktop
+npm run build
+```
+
+З Tauri-папки:
+
+```bash
+cd apps/desktop/src-tauri
+cargo check
+```
+
+Перевірка whitespace у Git diff:
+
+```bash
+git diff --check
+```
+
+## Git Workflow
+
+Перед змінами:
+
+```bash
+git status --short --branch
+```
+
+Після перевірок:
+
+```bash
+git add ...
+git commit -m "Short clear message"
+git push
+```
+
+Не додавай у Git локальні залежності й runtime-файли:
+
+```text
+.venv
+.backupflow
+apps/desktop/node_modules
+apps/desktop/dist
+apps/desktop/src-tauri/target
 ```

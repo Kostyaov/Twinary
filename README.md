@@ -1,62 +1,110 @@
 # BackupFlow
 
-BackupFlow is a cross-platform desktop app for safely synchronizing a primary computer folder with an external drive folder.
+BackupFlow - desktop-програма для безпечної двосторонньої синхронізації папки на комп'ютері з папкою на зовнішньому диску.
 
-Version: `1.0.0`
+Поточна версія: `1.0.0`
 
-## What It Does
+## Що вміє програма
 
-- creates synchronization profiles for local and external folders
-- lets you choose folders with the native file picker
-- analyzes both folder trees before copying anything
-- reuses a prepared analyze plan when you press Synchronize after Analyze
-- copies files in both directions with native tools: `rsync` on macOS and `robocopy` on Windows
-- keeps both versions when both sides changed, instead of silently overwriting data
-- tracks sync sessions and file metadata in SQLite
-- shows long-running analyze/sync progress in the desktop UI
-- supports cancelling long analyze and sync jobs
-- ignores common system files such as `.DS_Store`, `Thumbs.db`, `desktop.ini`, and macOS AppleDouble `._*` files
-- handles Unicode filename normalization across APFS/exFAT-style filesystem differences
-- avoids expensive content hashing for large media files; normal comparison uses file size and modification time
+- створює окремі профілі синхронізації;
+- дозволяє обирати папки через системний вибір папки;
+- аналізує обидві папки перед копіюванням;
+- показує план синхронізації до виконання;
+- після `Analyze` використовує підготовлений план для `Synchronize`;
+- копіює файли в обидва боки;
+- використовує системні інструменти копіювання: `rsync` на macOS і `robocopy` на Windows;
+- показує прогрес довгих операцій, поточний етап, файл, час і кількість дій;
+- дозволяє перервати довгий аналіз або синхронізацію кнопкою `Stop`;
+- не видаляє файли назавжди під час видалення профілю;
+- зберігає профілі, історію синхронізацій і metadata у SQLite;
+- ігнорує типові системні файли: `.DS_Store`, `Thumbs.db`, `desktop.ini`, AppleDouble `._*`;
+- нормалізує Unicode-імена файлів, щоб APFS/exFAT не створювали повторні копії для візуально однакових назв;
+- для звичайного режиму порівнює файли за розміром і датою редагування;
+- у режимі `Strict verification` додатково перевіряє хеші малих не-медійних файлів, коли розмір однаковий, а дата відрізняється.
 
-Safety rule: BackupFlow must never silently overwrite conflicting files.
+Головне правило безпеки: BackupFlow не має мовчки перезаписувати конфліктні файли.
 
-## Launch Desktop Interface
+## Швидкий Запуск
 
-On macOS, double-click:
+На macOS:
 
 ```text
 start-macos.command
 ```
 
-On Windows, double-click:
+На Windows:
 
 ```text
 start-windows.bat
 ```
 
-These launchers start the Python backend and open the Tauri desktop interface.
+Launcher створює локальне Python-середовище `.venv` у папці проєкту. Python-бібліотеки BackupFlow не встановлюються глобально в систему.
 
-For a beginner-friendly Windows setup guide in Ukrainian, see:
+Перший запуск може тривати довше, бо встановлюються залежності frontend-частини і компілюється Tauri development-застосунок.
+
+## Документація
+
+- [Встановлення на Windows](docs/install-windows-uk.md)
+- [Встановлення на macOS](docs/install-macos-uk.md)
+- [Архітектура](docs/architecture.md)
+- [Алгоритм синхронізації](docs/sync-algorithm.md)
+- [Розробка і перевірки](docs/development.md)
+- [База даних](docs/database.md)
+
+## Базовий Сценарій
+
+1. Натисни `New profile`.
+2. Введи назву профілю.
+3. Обери `Computer folder`.
+4. Обери `External folder`.
+5. За потреби увімкни `Strict verification`.
+6. Натисни `Save`.
+7. Натисни `Analyze`.
+8. Перевір `Sync Plan`.
+9. Натисни `Synchronize`.
+10. Після завершення знову запусти `Analyze`.
+
+Якщо все синхронізовано, результат має бути `0 changes to sync`.
+
+## Analyze І Synchronize
+
+`Analyze` нічого не копіює. Він сканує обидві папки й готує план: що треба скопіювати, оновити, пропустити або обробити як конфлікт.
+
+`Synchronize` виконує підготовлений план. Якщо перед цим був успішний `Analyze`, повторний аналіз не запускається. Якщо підготовленого плану немає або він не підходить до поточного профілю, backend будує новий план.
+
+## Strict Verification
+
+Звичайний режим швидкий: файл вважається однаковим, якщо збігаються шлях, розмір і дата редагування з невеликим допуском для різних файлових систем.
+
+`Strict verification` повільніший, але обережніший. Якщо розмір однаковий, а дата редагування відрізняється, BackupFlow може порахувати хеши вмісту і зрозуміти, чи файл реально змінився.
+
+Щоб не гальмувати на великих файлах, великі файли, відео, аудіо, архіви й образи дисків навіть у strict-режимі перевіряються швидким способом: розмір плюс дата.
+
+## Де Зберігаються Дані
+
+Профілі та історія зберігаються в SQLite:
 
 ```text
-docs/install-windows-uk.md
+~/.backupflow/backupflow.sqlite3
 ```
 
-The launchers create and use a local Python virtual environment in `.venv`, so BackupFlow does not install Python packages globally.
+На Windows це зазвичай:
 
-## Basic Workflow
+```text
+C:\Users\<User>\.backupflow\backupflow.sqlite3
+```
 
-1. Click `New profile`.
-2. Choose the computer folder and external folder.
-3. Click `Analyze` to preview the sync plan.
-4. Review the plan summary.
-5. Click `Synchronize` to execute the prepared plan.
-6. Run `Analyze` again. A clean sync should show `0 changes to sync` unless files changed again.
+Локальні робочі файли launcher-ів:
 
-Deleting a profile removes only BackupFlow settings and history. It does not delete files from synchronized folders.
+```text
+.venv
+.backupflow
+apps/desktop/node_modules
+```
 
-## Backend Commands
+Вони не мають потрапляти в Git.
+
+## Backend CLI
 
 ```bash
 cd apps/backend
@@ -68,22 +116,28 @@ python3 -m backupflow sync PROFILE_ID
 python3 -m backupflow serve
 ```
 
-## Development Checks
+Для ізольованих тестів можна задати окремий шлях до бази:
 
-From the repository root:
+```bash
+BACKUPFLOW_DB_PATH=/tmp/backupflow-dev.sqlite3 python3 -m backupflow serve
+```
+
+## Перевірки Для Розробки
+
+З кореня репозиторію:
 
 ```bash
 python3 -m compileall apps/backend/backupflow apps/backend/tests
 pytest apps/backend/tests
 ```
 
-From `apps/desktop`:
+З `apps/desktop`:
 
 ```bash
 npm run build
 ```
 
-From `apps/desktop/src-tauri`:
+З `apps/desktop/src-tauri`:
 
 ```bash
 cargo check

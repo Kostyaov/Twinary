@@ -1,0 +1,423 @@
+You are a senior software architect and lead developer.
+
+Your task is to design and implement a cross-platform desktop application called BackupFlow.
+
+The application must work on both Windows and macOS.
+
+This is NOT just another file copy utility.
+
+The goal is to create the fastest and safest synchronization tool for developers, photographers, videographers and anyone working with large projects.
+
+=====================================================
+MAIN IDEA
+=====================================================
+
+The application synchronizes selected folders between a computer and an external drive.
+
+Typical workflow:
+
+1. User connects an external SSD/HDD.
+2. Launches BackupFlow.
+3. Application detects the external drive.
+4. User chooses synchronization profile.
+5. Application analyzes differences.
+6. Application shows synchronization plan.
+7. User presses Synchronize.
+8. Synchronization starts.
+
+The application performs bidirectional synchronization.
+
+If new files exist on the computer:
+→ copy them to external drive.
+
+If new files exist on external drive:
+→ copy them to computer.
+
+If files were modified:
+→ synchronize newest version.
+
+If both copies changed:
+→ detect conflict.
+
+Safety is more important than automation.
+
+Never silently overwrite conflicting files.
+
+=====================================================
+PRIORITIES
+=====================================================
+
+Priority #1
+Never lose user data.
+
+Priority #2
+Maximum speed.
+
+Priority #3
+Beautiful modern UI.
+
+Priority #4
+Simple UX.
+
+=====================================================
+TECH STACK
+=====================================================
+
+Frontend:
+- React
+- TypeScript
+- Tauri
+
+Backend:
+- Python 3.12+
+
+Database:
+SQLite
+
+=====================================================
+FILE COMPARISON
+=====================================================
+
+DO NOT calculate hashes for every file.
+
+Use this algorithm:
+
+1. Compare path.
+2. Compare size.
+3. Compare modification time.
+
+If all equal:
+Skip.
+
+If size differs:
+Copy.
+
+If modification time differs but size is equal:
+Calculate xxHash64.
+
+Only if hash differs:
+Copy.
+
+Never calculate hashes for every file.
+
+=====================================================
+VERY LARGE FILES
+=====================================================
+
+For video files larger than 5GB:
+
+Use only:
+
+- size
+- modification time
+
+Do NOT calculate hashes unless user enables "strict verification".
+
+=====================================================
+COPY ENGINE
+=====================================================
+
+Do NOT use shutil.copy().
+
+Use native OS tools.
+
+Windows:
+robocopy
+
+macOS:
+rsync
+
+The application should call them internally.
+
+=====================================================
+AUTOMATIC EXCLUSIONS
+=====================================================
+
+Ignore these folders by default:
+
+node_modules
+.venv
+venv
+.git
+.hg
+svn
+__pycache__
+.pytest_cache
+.mypy_cache
+.cache
+.next
+.nuxt
+dist
+build
+target
+bin
+obj
+coverage
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+desktop.ini
+
+The user can edit this list.
+
+=====================================================
+SYNC PROFILES
+=====================================================
+
+Support multiple profiles.
+
+Example:
+
+Video Projects
+
+Python Projects
+
+Documents
+
+Archive
+
+Each profile contains:
+
+Name
+
+Local folders
+
+External destination
+
+Exclude rules
+
+=====================================================
+DATABASE
+=====================================================
+
+Store:
+
+last synchronization
+
+file metadata
+
+history
+
+profile settings
+
+external drive UUID
+
+=====================================================
+CONFLICTS
+=====================================================
+
+If file changed on both devices:
+
+Show dialog:
+
+Conflict detected
+
+Laptop:
+modified 22:15
+
+External SSD:
+modified 18:42
+
+Options:
+
+Keep newer
+
+Keep laptop version
+
+Keep external version
+
+Keep both
+
+Default:
+Keep both.
+
+=====================================================
+ANALYZE MODE
+=====================================================
+
+Before copying show:
+
+Files to copy →
+
+Files to copy ←
+
+Files to update
+
+Files to delete
+
+Ignored files
+
+Conflicts
+
+Estimated size
+
+Estimated duration
+
+Nothing is copied until user confirms.
+
+=====================================================
+BACKUP MODE
+=====================================================
+
+Never permanently delete files.
+
+Deleted files should be moved into
+
+.BackupFlowTrash/
+
+for configurable number of days.
+
+=====================================================
+UI
+=====================================================
+
+Modern.
+
+Minimal.
+
+Dark mode.
+
+Light mode.
+
+Responsive.
+
+Native feeling.
+
+Main window:
+
+----------------------------------
+
+External drive
+
+Status
+
+Profiles
+
+Folders
+
+Analyze button
+
+Synchronize button
+
+Progress bar
+
+Current file
+
+Transfer speed
+
+Remaining time
+
+Log panel
+
+----------------------------------
+
+=====================================================
+PERFORMANCE
+=====================================================
+
+The application should comfortably handle
+
+500,000+
+
+files
+
+without freezing.
+
+All scanning must run in background.
+
+UI must remain responsive.
+
+=====================================================
+LOGGING
+=====================================================
+
+Keep history.
+
+Each sync session stores:
+
+date
+
+duration
+
+copied files
+
+updated files
+
+ignored files
+
+errors
+
+=====================================================
+FUTURE FEATURES
+=====================================================
+
+Design architecture so it can later support:
+
+Cloud backup
+
+NAS
+
+Dropbox
+
+Google Drive
+
+OneDrive
+
+Version history
+
+Live synchronization
+
+Real-time filesystem monitoring
+
+Scheduling
+
+Encryption
+
+=====================================================
+PROJECT STRUCTURE
+=====================================================
+
+Use clean architecture.
+
+Separate:
+
+UI
+
+Business logic
+
+Synchronization engine
+
+OS-specific layer
+
+Database
+
+Configuration
+
+=====================================================
+FIRST TASK
+=====================================================
+
+Before writing code:
+
+1. Design complete architecture.
+
+2. Explain why each technology is chosen.
+
+3. Show project folder structure.
+
+4. Describe synchronization algorithm.
+
+5. Describe database schema.
+
+6. Describe communication between React and Python.
+
+Only after architecture is approved begin implementation.
+
+Implementation should be incremental.
+
+Each stage must compile and run before moving to the next one.
+
+Never generate placeholder code that does not work.
+
+The final result should be production-quality code.

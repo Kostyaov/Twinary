@@ -1,0 +1,422 @@
+You are a senior software architect and Python developer.
+
+Your task is to design and implement the first production-ready version of a desktop application called:
+
+TWINARY
+
+Concept:
+"Twinary creates a digital twin of your work."
+
+The idea:
+A user has important projects, documents, source code, videos, and personal files.
+Twinary keeps two locations synchronized:
+- primary computer storage
+- external backup drive
+
+The user should never worry about losing years of work.
+
+This is NOT a simple file copy tool.
+It is a reliable two-way synchronization system with exclusions, change detection and a simple user interface.
+
+==================================================
+PRODUCT GOAL
+==================================================
+
+User scenario:
+
+1. User connects an external SSD/HDD.
+2. Opens Twinary.
+3. Selects synchronization folders.
+4. Presses one button:
+
+"SYNCHRONIZE"
+
+5. Application analyzes both locations.
+6. New and modified files are synchronized both ways.
+7. User receives a clear report.
+
+Example:
+
+Computer:
+D:\Projects
+
+External drive:
+E:\TwinaryBackup\Projects
+
+
+If a file is newer on computer:
+copy computer -> external drive
+
+If a file is newer on external drive:
+copy external drive -> computer
+
+If file exists only on one side:
+copy it to the other side.
+
+==================================================
+TARGET PLATFORMS
+==================================================
+
+The application must work on:
+
+- Windows 10/11
+- macOS
+
+Prefer a cross-platform architecture.
+
+Recommended stack:
+
+Backend:
+Python 3.12+
+
+GUI:
+Choose one:
+- PySide6 (preferred)
+or
+- Tauri + Python backend
+
+The first version should prioritize reliability over visual complexity.
+
+==================================================
+MAIN FEATURES v1
+==================================================
+
+## 1. Folder profiles
+
+User can create synchronization profiles.
+
+Example:
+
+Profile:
+"My Programming Projects"
+
+Source:
+C:\Programming
+
+Destination:
+E:\Twinary\Programming
+
+
+Each profile stores:
+
+- source path
+- destination path
+- excluded folders
+- last synchronization time
+
+
+==================================================
+## 2. Two-way synchronization engine
+
+Implement a real sync engine.
+
+Requirements:
+
+- compare files by:
+    - modification time
+    - file size
+
+Optional:
+hash comparison for changed files.
+
+Do NOT blindly copy everything.
+
+Algorithm:
+
+SCAN source
+SCAN destination
+
+Create file index:
+
+{
+ path,
+ size,
+ modified_time,
+ hash(optional)
+}
+
+
+Compare:
+
+ONLY SOURCE:
+copy to destination
+
+
+ONLY DESTINATION:
+copy to source
+
+
+BOTH EXIST:
+if source newer:
+    source -> destination
+
+if destination newer:
+    destination -> source
+
+if identical:
+    skip
+
+
+==================================================
+## 3. Exclusion system
+
+The application must automatically ignore unnecessary folders.
+
+Default exclusions:
+
+node_modules
+.venv
+venv
+env
+__pycache__
+.git
+.idea
+.vscode
+.cache
+dist
+build
+coverage
+tmp
+temp
+
+
+User can add custom exclusions.
+
+
+Example:
+
+Do not synchronize:
+
+Project/node_modules
+Project/.venv
+Project/cache
+
+
+==================================================
+## 4. Safety features
+
+VERY IMPORTANT.
+
+Before copying:
+
+Create synchronization preview:
+
+Example:
+
+Added:
++ 152 files
+
+Updated:
+↑ 34 files
+
+Deleted:
+0 files
+
+
+User must confirm.
+
+Never delete files automatically in v1.
+
+If conflicts happen:
+
+Example:
+
+same file changed on both sides
+
+Create:
+
+filename.conflict-copy.ext
+
+Do not overwrite silently.
+
+
+==================================================
+## 5. User interface
+
+Simple clean interface.
+
+Main window:
+
+--------------------------------
+
+TWINARY
+
+Profile:
+[ My Projects ▼ ]
+
+Source:
+[C:\Projects]
+
+Destination:
+[E:\Backup]
+
+[ ANALYZE ]
+
+Result:
+
+Files:
+12345
+
+Changes:
+245
+
+[ SYNCHRONIZE ]
+
+Progress bar
+
+Log window
+
+--------------------------------
+
+
+==================================================
+## 6. Logging
+
+Create log files:
+
+logs/
+
+sync_2026-07-22.log
+
+
+Log:
+
+- started
+- scanned folders
+- copied files
+- skipped files
+- errors
+
+
+==================================================
+## 7. Configuration
+
+Store settings locally.
+
+Use:
+
+JSON or SQLite.
+
+
+Example:
+
+config.json
+
+
+{
+ profiles:[
+ {
+ name:"Projects",
+ source:"",
+ destination:"",
+ exclusions:[]
+ }
+ ]
+}
+
+
+==================================================
+## 8. Performance requirements
+
+Important:
+
+The user may synchronize programming projects containing hundreds of thousands of small files.
+
+Optimize:
+
+- multithreaded scanning
+- avoid unnecessary copying
+- incremental comparison
+- efficient filesystem traversal
+
+
+Do NOT use simple shutil.copytree.
+
+
+==================================================
+## Project structure
+
+Create clean architecture:
+
+twinary/
+
+├── main.py
+
+├── gui/
+│   ├── main_window.py
+│   └── widgets/
+
+├── core/
+│   ├── scanner.py
+│   ├── comparator.py
+│   ├── synchronizer.py
+│   ├── exclusions.py
+
+├── models/
+│   └── profile.py
+
+├── storage/
+│   └── config.py
+
+├── logs/
+
+├── tests/
+
+├── requirements.txt
+
+└── README.md
+
+
+==================================================
+Development approach
+
+Do not try to implement everything at once.
+
+Create in stages:
+
+PHASE 1:
+Working synchronization engine without GUI.
+
+Tests:
+- create temporary folders
+- create files
+- modify files
+- verify synchronization
+
+
+PHASE 2:
+Add configuration profiles.
+
+
+PHASE 3:
+Add GUI.
+
+
+PHASE 4:
+Improve performance.
+
+
+==================================================
+Code quality requirements
+
+Write clean production-style code.
+
+Requirements:
+
+- type hints
+- docstrings
+- error handling
+- logging
+- unit tests
+
+
+Explain architectural decisions.
+
+Before coding:
+1. Analyze requirements.
+2. Propose architecture.
+3. Create implementation plan.
+4. Then start writing code.
+
+
+The final result should be a working MVP of Twinary v1.

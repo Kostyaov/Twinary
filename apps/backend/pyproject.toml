@@ -1,0 +1,10 @@
+[project]
+name = "backupflow"
+version = "1.0.0"
+description = "Safe two-way synchronization backend for BackupFlow."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

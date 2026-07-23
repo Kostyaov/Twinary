@@ -465,7 +465,7 @@ function App() {
   const progressActionLabel = getProgressActionLabel(analyzeJob, syncJob, isAnalyzing, isSyncing, text, language);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" lang={language}>
       <aside className="sidebar">
         <div className="brand">
           <HardDrive aria-hidden="true" />

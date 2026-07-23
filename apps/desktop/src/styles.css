@@ -63,6 +63,32 @@ button:disabled {
   gap: 8px;
 }
 
+.language-control {
+  display: grid;
+  gap: 7px;
+  margin-top: -12px;
+}
+
+.language-control label {
+  color: #90a0ad;
+  font-size: 12px;
+}
+
+.language-control select {
+  min-height: 38px;
+  border: 1px solid #384753;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #e8f0f4;
+  background: #11171c;
+  outline: none;
+}
+
+.language-control select:focus {
+  border-color: #7fd0b6;
+  box-shadow: 0 0 0 3px rgba(127, 208, 182, 0.14);
+}
+
 .new-profile-button {
   display: inline-flex;
   align-items: center;
@@ -146,6 +172,12 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .eyebrow {
@@ -559,6 +591,7 @@ dd {
   }
 
   .topbar,
+  .topbar-actions,
   .actions-row,
   .progress-meta,
   .progress-details {

@@ -15,6 +15,15 @@ import {
   X
 } from "lucide-react";
 import { confirm as confirmDialog, open } from "@tauri-apps/plugin-dialog";
+import {
+  fillTemplate,
+  isLanguage,
+  LANGUAGE_OPTIONS,
+  LANGUAGE_STORAGE_KEY,
+  TRANSLATIONS,
+  type Language,
+  type Translation
+} from "./i18n";
 import "./styles.css";
 
 type Profile = {
@@ -93,8 +102,6 @@ type ApiError = {
 const API_BASE_CANDIDATES = [8765, 18765, 28765, 38765, 48765].map((port) => `http://127.0.0.1:${port}`);
 const TERMINAL_JOB_STATUSES = new Set(["completed", "completed_with_errors", "failed", "cancelled"]);
 const TERMINAL_ANALYZE_STATUSES = new Set(["completed", "failed", "cancelled"]);
-const STRICT_VERIFICATION_HELP =
-  "Checks content hashes for small non-media files when size matches but timestamps differ. Slower, but can avoid false differences. Large media files still use fast size/date comparison.";
 
 const EMPTY_PROFILE_FORM = {
   name: "",
@@ -104,6 +111,10 @@ const EMPTY_PROFILE_FORM = {
 };
 
 function App() {
+  const [language, setLanguage] = useState<Language>(() => {
+    const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return isLanguage(storedLanguage) ? storedLanguage : "uk";
+  });
   const [backendOnline, setBackendOnline] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
@@ -117,12 +128,17 @@ function App() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
   const [apiBase, setApiBase] = useState(API_BASE_CANDIDATES[0]);
-  const [logLines, setLogLines] = useState<string[]>(["Waiting for BackupFlow backend..."]);
+  const [logLines, setLogLines] = useState<string[]>([TRANSLATIONS.uk.logs.waitingBackend]);
+  const text = TRANSLATIONS[language];
 
   const selectedProfile = useMemo(
     () => profiles.find((profile) => profile.id === selectedProfileId) ?? null,
     [profiles, selectedProfileId]
   );
+
+  useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  }, [language]);
 
   useEffect(() => {
     void loadProfiles();
@@ -141,10 +157,10 @@ function App() {
       setAnalyzeJob(null);
       setSyncResult(null);
       setSyncJob(null);
-      setLogLines([`Backend connected at ${detectedApiBase}`]);
+      setLogLines([fillTemplate(text.logs.backendConnectedAt, { url: detectedApiBase })]);
     } catch {
       setBackendOnline(false);
-      setLogLines([`Backend is offline. Start it with: python3 -m backupflow serve`]);
+      setLogLines([text.logs.backendOffline]);
     }
   }
 
@@ -164,7 +180,7 @@ function App() {
       external_path: profileForm.external_path.trim()
     };
     if (!trimmedForm.name || !trimmedForm.local_path || !trimmedForm.external_path) {
-      setLogLines((lines) => ["Profile name, computer folder, and external folder are required.", ...lines]);
+      setLogLines((lines) => [text.logs.profileRequired, ...lines]);
       return;
     }
     setIsSavingProfile(true);
@@ -187,9 +203,9 @@ function App() {
       setSyncJob(null);
       setProfileForm(EMPTY_PROFILE_FORM);
       setIsCreatingProfile(false);
-      setLogLines((lines) => [`Profile created: ${payload.profile.name}`, ...lines]);
+      setLogLines((lines) => [fillTemplate(text.logs.profileCreated, { name: payload.profile.name }), ...lines]);
     } catch {
-      setLogLines((lines) => ["Profile creation failed because backend is unreachable.", ...lines]);
+      setLogLines((lines) => [text.logs.profileCreateFailed, ...lines]);
     } finally {
       setIsSavingProfile(false);
     }
@@ -197,22 +213,22 @@ function App() {
 
   async function deleteProfile(profile: Profile) {
     if (isSyncing || isAnalyzing) {
-      setLogLines((lines) => ["Cannot delete a profile while work is running.", ...lines]);
+      setLogLines((lines) => [text.logs.cannotDeleteWhileRunning, ...lines]);
       return;
     }
     let shouldDelete = false;
     try {
       shouldDelete = await confirmDialog(
-        `Delete profile "${profile.name}"?\n\nThis removes only BackupFlow settings and history. It does not delete files from your folders.`,
+        fillTemplate(text.deleteProfileMessage, { name: profile.name }),
         {
-          title: "Delete Profile",
+          title: text.deleteProfileTitle,
           kind: "warning",
-          okLabel: "Delete",
-          cancelLabel: "Cancel"
+          okLabel: text.deleteProfileButton,
+          cancelLabel: text.cancel
         }
       );
     } catch {
-      setLogLines((lines) => ["Delete confirmation failed to open.", ...lines]);
+      setLogLines((lines) => [text.logs.deleteConfirmationFailed, ...lines]);
       return;
     }
     if (!shouldDelete) {
@@ -235,9 +251,9 @@ function App() {
         setSyncResult(null);
         setSyncJob(null);
       }
-      setLogLines((lines) => [`Profile deleted: ${profile.name}`, ...lines]);
+      setLogLines((lines) => [fillTemplate(text.logs.profileDeleted, { name: profile.name }), ...lines]);
     } catch {
-      setLogLines((lines) => ["Profile deletion failed because backend is unreachable.", ...lines]);
+      setLogLines((lines) => [text.logs.profileDeleteFailed, ...lines]);
     }
   }
 
@@ -246,19 +262,19 @@ function App() {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: field === "local_path" ? "Select computer folder" : "Select external folder"
+        title: field === "local_path" ? text.selectComputerFolder : text.selectExternalFolder
       });
       if (typeof selected === "string") {
         setProfileForm((form) => ({ ...form, [field]: selected }));
       }
     } catch {
-      setLogLines((lines) => ["Folder picker failed to open.", ...lines]);
+      setLogLines((lines) => [text.logs.folderPickerFailed, ...lines]);
     }
   }
 
   async function analyzeSelectedProfile() {
     if (!selectedProfileId) {
-      setLogLines((lines) => ["No profile selected.", ...lines]);
+      setLogLines((lines) => [text.logs.noProfileSelected, ...lines]);
       return;
     }
     setIsAnalyzing(true);
@@ -266,7 +282,7 @@ function App() {
     setAnalyzeJob(null);
     setSyncResult(null);
     setSyncJob(null);
-    setLogLines((lines) => ["Analysis started.", ...lines]);
+    setLogLines((lines) => [text.logs.analysisStarted, ...lines]);
     try {
       const response = await fetch(`${apiBase}/analyze`, {
         method: "POST",
@@ -281,7 +297,7 @@ function App() {
       setAnalyzeJob(payload);
       await pollAnalyzeJob(payload.job_id);
     } catch {
-      setLogLines((lines) => ["Analyze failed because backend is unreachable.", ...lines]);
+      setLogLines((lines) => [text.logs.analyzeFailedOffline, ...lines]);
     } finally {
       setIsAnalyzing(false);
     }
@@ -303,13 +319,19 @@ function App() {
           setPlan(result);
           const stats = getPlanStats(result);
           setLogLines((lines) => [
-            `Analyze completed: ${stats.syncChanges.toLocaleString()} changes to sync, ${stats.totalItems.toLocaleString()} plan items`,
+            fillTemplate(text.logs.analyzeCompleted, {
+              changes: formatNumber(stats.syncChanges, language),
+              items: formatNumber(stats.totalItems, language)
+            }),
             ...lines
           ]);
         } else if (payload.status === "cancelled") {
-          setLogLines((lines) => ["Analyze cancelled.", ...lines]);
+          setLogLines((lines) => [text.logs.analyzeCancelled, ...lines]);
         } else {
-          setLogLines((lines) => [`Analyze failed: ${payload.error ?? payload.message}`, ...lines]);
+          setLogLines((lines) => [
+            fillTemplate(text.logs.analyzeFailed, { message: payload.error ?? translateBackendMessage(payload.message, text) }),
+            ...lines
+          ]);
         }
         return;
       }
@@ -318,13 +340,13 @@ function App() {
 
   async function synchronizeSelectedProfile() {
     if (!selectedProfileId) {
-      setLogLines((lines) => ["No profile selected.", ...lines]);
+      setLogLines((lines) => [text.logs.noProfileSelected, ...lines]);
       return;
     }
     setIsSyncing(true);
     setSyncResult(null);
     setSyncJob(null);
-    setLogLines((lines) => ["Synchronization started.", ...lines]);
+    setLogLines((lines) => [text.logs.synchronizationStarted, ...lines]);
     try {
       const response = await fetch(`${apiBase}/synchronize`, {
         method: "POST",
@@ -341,11 +363,11 @@ function App() {
       }
       setSyncJob(payload);
       if (payload.uses_prepared_plan) {
-        setLogLines((lines) => ["Using prepared analyze plan.", ...lines]);
+        setLogLines((lines) => [text.logs.usingPreparedPlan, ...lines]);
       }
       await pollSyncJob(payload.job_id);
     } catch {
-      setLogLines((lines) => ["Synchronization failed because backend is unreachable.", ...lines]);
+      setLogLines((lines) => [text.logs.syncFailedOffline, ...lines]);
     } finally {
       setIsSyncing(false);
     }
@@ -366,15 +388,23 @@ function App() {
         if (result) {
           setSyncResult(result);
           setLogLines((lines) => [
-            `Synchronization ${result.status}: ${result.copied_count} copied, ${result.updated_count} updated, ${result.conflicts_resolved_count} conflicts kept both`,
+            fillTemplate(text.logs.syncCompleted, {
+              status: formatStatus(result.status, text),
+              copied: formatNumber(result.copied_count, language),
+              updated: formatNumber(result.updated_count, language),
+              conflicts: formatNumber(result.conflicts_resolved_count, language)
+            }),
             ...result.events.slice(0, 8),
             ...lines
           ]);
           setPlan(null);
         } else if (payload.status === "cancelled") {
-          setLogLines((lines) => ["Synchronization cancelled.", ...lines]);
+          setLogLines((lines) => [text.logs.syncCancelled, ...lines]);
         } else {
-          setLogLines((lines) => [`Synchronization failed: ${payload.error ?? payload.message}`, ...lines]);
+          setLogLines((lines) => [
+            fillTemplate(text.logs.syncFailed, { message: payload.error ?? translateBackendMessage(payload.message, text) }),
+            ...lines
+          ]);
         }
         return;
       }
@@ -385,7 +415,7 @@ function App() {
     const activeAnalyzeJobId = isAnalyzing ? analyzeJob?.job_id : null;
     const activeSyncJobId = isSyncing ? syncJob?.job_id : null;
     if (!activeAnalyzeJobId && !activeSyncJobId) {
-      setLogLines((lines) => ["No active job to cancel yet.", ...lines]);
+      setLogLines((lines) => [text.logs.noActiveJob, ...lines]);
       return;
     }
 
@@ -395,7 +425,7 @@ function App() {
         const payload = (await response.json()) as AnalyzeJob | ApiError;
         if (isAnalyzeJob(payload)) {
           setAnalyzeJob(payload);
-          setLogLines((lines) => ["Cancel requested for analysis.", ...lines]);
+          setLogLines((lines) => [text.logs.cancelAnalyzeRequested, ...lines]);
           return;
         }
         setLogLines((lines) => [payload.error, ...lines]);
@@ -407,31 +437,32 @@ function App() {
         const payload = (await response.json()) as SyncJob | ApiError;
         if (isSyncJob(payload)) {
           setSyncJob(payload);
-          setLogLines((lines) => ["Cancel requested for synchronization.", ...lines]);
+          setLogLines((lines) => [text.logs.cancelSyncRequested, ...lines]);
           return;
         }
         setLogLines((lines) => [payload.error, ...lines]);
       }
     } catch {
-      setLogLines((lines) => ["Cancel request failed because backend is unreachable.", ...lines]);
+      setLogLines((lines) => [text.logs.cancelFailedOffline, ...lines]);
     }
   }
 
-  const planRows = summarizePlan(plan);
+  const planRows = summarizePlan(plan, text);
   const progressPercent = getProgressPercent(analyzeJob, syncJob, syncResult, isAnalyzing, isSyncing);
   const progressWidth = `${progressPercent}%`;
   const isWorking = isAnalyzing || isSyncing;
   const isCancelRequested = Boolean(analyzeJob?.cancel_requested || syncJob?.cancel_requested);
   const isIndeterminate = isAnalyzing || (isSyncing && (!syncJob || syncJob.total_actions === 0));
-  const progressStatus = analyzeJob?.status ?? syncJob?.status ?? (syncResult ? syncResult.status : "Not running");
-  const progressMessage = getProgressMessage(analyzeJob, syncJob, syncResult);
-  const currentPath = isAnalyzing ? analyzeJob?.current_path ?? "Analyzing folder tree" : syncJob?.current_path ?? "-";
+  const rawProgressStatus = analyzeJob?.status ?? syncJob?.status ?? (syncResult ? syncResult.status : "not_running");
+  const progressStatus = formatStatus(rawProgressStatus, text);
+  const progressMessage = getProgressMessage(analyzeJob, syncJob, syncResult, text, language);
+  const currentPath = isAnalyzing ? analyzeJob?.current_path ?? text.analyzingFolderTree : syncJob?.current_path ?? "-";
   const elapsed = analyzeJob
     ? formatDuration(analyzeJob.elapsed_seconds)
     : syncJob
       ? formatDuration(syncJob.elapsed_seconds)
       : "-";
-  const progressActionLabel = getProgressActionLabel(analyzeJob, syncJob, isAnalyzing, isSyncing);
+  const progressActionLabel = getProgressActionLabel(analyzeJob, syncJob, isAnalyzing, isSyncing, text, language);
 
   return (
     <main className="app-shell">
@@ -440,13 +471,27 @@ function App() {
           <HardDrive aria-hidden="true" />
           <span>BackupFlow</span>
         </div>
-        <nav className="profile-list" aria-label="Profiles">
+        <div className="language-control">
+          <label htmlFor="language-select">{text.languageLabel}</label>
+          <select
+            id="language-select"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            {LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <nav className="profile-list" aria-label={text.profilesNav}>
           <button className="new-profile-button" onClick={() => setIsCreatingProfile(true)} disabled={isWorking}>
             <Plus aria-hidden="true" />
-            New profile
+            {text.newProfileButton}
           </button>
           {profiles.length === 0 ? (
-            <p className="empty-state">No profiles yet</p>
+            <p className="empty-state">{text.noProfilesYet}</p>
           ) : (
             profiles.map((profile) => (
               <div className="profile-row" key={profile.id}>
@@ -461,8 +506,8 @@ function App() {
                   type="button"
                   onClick={() => void deleteProfile(profile)}
                   disabled={isWorking}
-                  aria-label={`Delete ${profile.name}`}
-                  title="Delete profile"
+                  aria-label={fillTemplate(text.deleteProfileAria, { name: profile.name })}
+                  title={text.deleteProfileTitle}
                 >
                   <Trash2 aria-hidden="true" />
                 </button>
@@ -475,12 +520,14 @@ function App() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">External Drive</p>
-            <h1>{selectedProfile ? selectedProfile.name : "No profile selected"}</h1>
+            <p className="eyebrow">{text.externalDrive}</p>
+            <h1>{selectedProfile ? selectedProfile.name : text.noProfileSelected}</h1>
           </div>
-          <div className="drive-state">
-            <span className={`status-dot ${backendOnline ? "" : "offline"}`} />
-            {backendOnline ? "Backend connected" : "Backend offline"}
+          <div className="topbar-actions">
+            <div className="drive-state">
+              <span className={`status-dot ${backendOnline ? "" : "offline"}`} />
+              {backendOnline ? text.backendConnected : text.backendOffline}
+            </div>
           </div>
         </header>
 
@@ -488,19 +535,19 @@ function App() {
           <section className="panel profile-form-panel">
             <div className="panel-title">
               <Plus aria-hidden="true" />
-              <h2>New Profile</h2>
+              <h2>{text.newProfileTitle}</h2>
             </div>
             <div className="profile-form-grid">
               <label>
-                <span>Name</span>
+                <span>{text.name}</span>
                 <input
                   value={profileForm.name}
                   onChange={(event) => setProfileForm((form) => ({ ...form, name: event.target.value }))}
-                  placeholder="Name Project"
+                  placeholder={text.namePlaceholder}
                 />
               </label>
               <label>
-                <span>Computer folder</span>
+                <span>{text.computerFolder}</span>
                 <div className="path-picker-row">
                   <input
                     value={profileForm.local_path}
@@ -511,15 +558,15 @@ function App() {
                     type="button"
                     onClick={() => void chooseFolder("local_path")}
                     disabled={isSavingProfile || isAnalyzing}
-                    aria-label="Choose computer folder"
-                    title="Choose computer folder"
+                    aria-label={text.chooseComputerFolder}
+                    title={text.chooseComputerFolder}
                   >
                     <FolderOpen aria-hidden="true" />
                   </button>
                 </div>
               </label>
               <label>
-                <span>External folder</span>
+                <span>{text.externalFolder}</span>
                 <div className="path-picker-row">
                   <input
                     value={profileForm.external_path}
@@ -530,8 +577,8 @@ function App() {
                     type="button"
                     onClick={() => void chooseFolder("external_path")}
                     disabled={isSavingProfile || isAnalyzing}
-                    aria-label="Choose external folder"
-                    title="Choose external folder"
+                    aria-label={text.chooseExternalFolder}
+                    title={text.chooseExternalFolder}
                   >
                     <FolderOpen aria-hidden="true" />
                   </button>
@@ -545,8 +592,8 @@ function App() {
                     setProfileForm((form) => ({ ...form, strict_verification: event.target.checked }))
                   }
                 />
-                <span className="tooltip-anchor" tabIndex={0} data-tooltip={STRICT_VERIFICATION_HELP}>
-                  Strict verification
+                <span className="tooltip-anchor" tabIndex={0} data-tooltip={text.strictVerificationHelp}>
+                  {text.strictVerification}
                 </span>
               </label>
             </div>
@@ -560,11 +607,11 @@ function App() {
                 disabled={isSavingProfile || isAnalyzing}
               >
                 <X aria-hidden="true" />
-                Cancel
+                {text.cancel}
               </button>
               <button className="primary-button" onClick={() => void createProfile()} disabled={isSavingProfile || isAnalyzing}>
                 <Save aria-hidden="true" />
-                Save
+                {text.save}
               </button>
             </div>
           </section>
@@ -574,28 +621,28 @@ function App() {
           <div className="panel folders-panel">
             <div className="panel-title">
               <Database aria-hidden="true" />
-              <h2>Folders</h2>
+              <h2>{text.folders}</h2>
             </div>
             <div className="folder-pair">
-              <span>Computer</span>
+              <span>{text.computer}</span>
               <strong>{selectedProfile?.local_path ?? "-"}</strong>
             </div>
             <div className="folder-pair">
-              <span>External</span>
+              <span>{text.external}</span>
               <strong>{selectedProfile?.external_path ?? "-"}</strong>
             </div>
             <div className="actions-row">
               <button className="secondary-button" onClick={() => void loadProfiles()} disabled={isWorking}>
                 <RefreshCw aria-hidden="true" />
-                Refresh
+                {text.refresh}
               </button>
               <button className="secondary-button" onClick={() => void analyzeSelectedProfile()} disabled={isWorking}>
                 <ListChecks aria-hidden="true" />
-                Analyze
+                {text.analyze}
               </button>
               <button className="primary-button" onClick={() => void synchronizeSelectedProfile()} disabled={isWorking}>
                 <Play aria-hidden="true" />
-                Synchronize
+                {text.synchronize}
               </button>
             </div>
           </div>
@@ -603,20 +650,20 @@ function App() {
           <div className="panel safety-panel">
             <div className="panel-title">
               <ShieldAlert aria-hidden="true" />
-              <h2>Safety</h2>
+              <h2>{text.safety}</h2>
             </div>
             <dl>
               <div>
-                <dt>Default conflict action</dt>
-                <dd>Keep both</dd>
+                <dt>{text.defaultConflictAction}</dt>
+                <dd>{text.keepBoth}</dd>
               </div>
               <div>
-                <dt>Deletion mode</dt>
+                <dt>{text.deletionMode}</dt>
                 <dd>.BackupFlowTrash</dd>
               </div>
               <div>
-                <dt>Strict verification</dt>
-                <dd>{selectedProfile?.strict_verification ? "On" : "Off"}</dd>
+                <dt>{text.strictVerificationShort}</dt>
+                <dd>{selectedProfile?.strict_verification ? text.on : text.off}</dd>
               </div>
             </dl>
           </div>
@@ -625,11 +672,11 @@ function App() {
         <section className="panel plan-panel">
           <div className="panel-title">
             <ListChecks aria-hidden="true" />
-            <h2>Sync Plan</h2>
+            <h2>{text.syncPlan}</h2>
           </div>
           <div className="plan-table" role="table">
             {planRows.length === 0 ? (
-              <p className="empty-state">Run Analyze to preview what Synchronize will do.</p>
+              <p className="empty-state">{text.planEmpty}</p>
             ) : planRows.map((row) => (
               <div className="plan-row" role="row" key={row.label}>
                 <span>{row.label}</span>
@@ -643,7 +690,7 @@ function App() {
         <section className="panel progress-panel">
           <div className="panel-title">
             <Activity aria-hidden="true" />
-            <h2>Progress</h2>
+            <h2>{text.progress}</h2>
           </div>
           {isWorking ? (
             <div className="progress-actions">
@@ -654,28 +701,30 @@ function App() {
                 disabled={isCancelRequested}
               >
                 <X aria-hidden="true" />
-                {isCancelRequested ? "Stopping..." : "Stop"}
+                {isCancelRequested ? text.stopping : text.stop}
               </button>
             </div>
           ) : null}
           <div
             className={`progress-track ${isIndeterminate ? "indeterminate" : ""}`}
-            aria-label="Synchronization progress"
+            aria-label={text.progressAria}
           >
             <span style={{ width: progressWidth }} />
           </div>
           <div className="progress-details">
-            <span>Stage: {analyzeJob?.stage ?? syncJob?.stage ?? "-"}</span>
-            <span>Elapsed: {elapsed}</span>
+            <span>{text.stage}: {formatStage(analyzeJob?.stage ?? syncJob?.stage, text)}</span>
+            <span>{text.elapsed}: {elapsed}</span>
             <span>{progressActionLabel}</span>
           </div>
           <div className="progress-message">{progressMessage}</div>
           <div className="progress-meta">
-            <span>Current: {currentPath}</span>
+            <span>{text.current}: {currentPath}</span>
             <strong>{formatBytes(syncJob?.bytes_done ?? syncResult?.total_bytes ?? 0)}</strong>
             <span>
               {progressStatus}
-              {syncResult?.conflicts_resolved_count ? `, kept both: ${syncResult.conflicts_resolved_count}` : ""}
+              {syncResult?.conflicts_resolved_count
+                ? `, ${text.keptBoth}: ${formatNumber(syncResult.conflicts_resolved_count, language)}`
+                : ""}
             </span>
           </div>
         </section>
@@ -690,7 +739,7 @@ function App() {
   );
 }
 
-function summarizePlan(plan: AnalyzePlan | null) {
+function summarizePlan(plan: AnalyzePlan | null, text: Translation) {
   if (!plan) {
     return [];
   }
@@ -702,7 +751,7 @@ function summarizePlan(plan: AnalyzePlan | null) {
     byType.set(action.type, current);
   }
   return Array.from(byType.entries()).map(([type, value]) => ({
-    label: formatActionType(type),
+    label: formatActionType(type, text),
     count: value.count,
     size: value.size ? formatBytes(value.size) : "-"
   }));
@@ -715,33 +764,48 @@ function getPlanStats(plan: AnalyzePlan) {
   };
 }
 
-function formatActionType(type: string) {
-  const labels: Record<string, string> = {
-    copy_local_to_external: "Copy computer to external",
-    copy_external_to_local: "Copy external to computer",
-    update_local_to_external: "Update external from computer",
-    update_external_to_local: "Update computer from external",
-    conflict: "Conflicts to keep both",
-    skip: "Already matched"
-  };
-  return labels[type] ?? type.split("_").join(" ");
+function formatActionType(type: string, text: Translation) {
+  return text.planActions[type as keyof Translation["planActions"]] ?? type.split("_").join(" ");
 }
 
-function getProgressMessage(analyzeJob: AnalyzeJob | null, syncJob: SyncJob | null, syncResult: SyncResult | null) {
+function getProgressMessage(
+  analyzeJob: AnalyzeJob | null,
+  syncJob: SyncJob | null,
+  syncResult: SyncResult | null,
+  text: Translation,
+  language: Language
+) {
   if (analyzeJob?.status === "completed" && analyzeJob.result) {
     const stats = getPlanStats(analyzeJob.result);
-    return `Analysis completed. ${stats.syncChanges.toLocaleString()} changes to sync, ${stats.totalItems.toLocaleString()} plan items.`;
+    return fillTemplate(text.progressMessages.analysisCompleted, {
+      changes: formatNumber(stats.syncChanges, language),
+      items: formatNumber(stats.totalItems, language)
+    });
   }
   if (analyzeJob) {
-    return analyzeJob.message;
+    return translateBackendMessage(analyzeJob.message, text);
   }
   if (syncJob) {
-    return syncJob.message;
+    return translateBackendMessage(syncJob.message, text);
   }
   if (syncResult) {
-    return "Synchronization finished.";
+    return text.syncFinished;
   }
-  return "No sync is running.";
+  return text.noSyncRunning;
+}
+
+function translateBackendMessage(message: string, text: Translation) {
+  const messages: Record<string, string> = {
+    "Waiting to start analysis.": text.progressMessages.waitingAnalysis,
+    "Scanning folders and building synchronization plan.": text.progressMessages.scanningFolders,
+    "Analysis cancelled.": text.progressMessages.analysisCancelled,
+    "Strict verification is hashing local file.": text.progressMessages.strictHashing,
+    "Strict verification is hashing external file.": text.progressMessages.strictHashing,
+    "Waiting to start synchronization.": text.progressMessages.waitingSync,
+    "Starting synchronization.": text.progressMessages.startingSync,
+    "Synchronization cancelled.": text.progressMessages.syncCancelled
+  };
+  return messages[message] ?? message;
 }
 
 function formatBytes(bytes: number) {
@@ -784,22 +848,59 @@ function getProgressActionLabel(
   analyzeJob: AnalyzeJob | null,
   syncJob: SyncJob | null,
   isAnalyzing: boolean,
-  isSyncing: boolean
+  isSyncing: boolean,
+  text: Translation,
+  language: Language
 ) {
   if (isSyncing && syncJob) {
-    return `Actions: ${syncJob.processed_actions.toLocaleString()}/${syncJob.total_actions ? syncJob.total_actions.toLocaleString() : "?"}`;
+    return `${text.actions}: ${formatNumber(syncJob.processed_actions, language)}/${syncJob.total_actions ? formatNumber(syncJob.total_actions, language) : "?"}`;
   }
   if (isAnalyzing) {
-    return `Files: ${analyzeJob?.stage === "comparing" ? "comparing" : "scanning"}`;
+    return `${text.files}: ${analyzeJob?.stage === "comparing" ? text.comparingShort : text.scanningShort}`;
   }
   if (analyzeJob?.status === "completed" && analyzeJob.result) {
     const stats = getPlanStats(analyzeJob.result);
-    return `Found: ${stats.syncChanges.toLocaleString()} changes`;
+    return `${text.found}: ${formatNumber(stats.syncChanges, language)} ${text.changes}`;
   }
   if (syncJob?.status === "cancelled") {
-    return "Actions: cancelled";
+    return `${text.actions}: ${text.cancelledActions}`;
   }
-  return "Actions: idle";
+  return `${text.actions}: ${text.idle}`;
+}
+
+function formatStatus(status: string, text: Translation) {
+  const labels: Record<string, string> = {
+    not_running: text.notRunning,
+    running: text.running,
+    completed: text.completed,
+    completed_with_errors: text.completedWithErrors,
+    failed: text.failed,
+    cancelled: text.cancelled,
+    queued: text.queued
+  };
+  return labels[status] ?? status;
+}
+
+function formatStage(stage: string | undefined, text: Translation) {
+  if (!stage) {
+    return "-";
+  }
+  const labels: Record<string, string> = {
+    queued: text.queued,
+    starting: text.starting,
+    analyzing: text.analyzing,
+    scanning: text.scanning,
+    comparing: text.comparing,
+    hashing: text.hashing,
+    finished: text.finished,
+    failed: text.failed,
+    cancelled: text.cancelled
+  };
+  return labels[stage] ?? stage;
+}
+
+function formatNumber(value: number, language: Language) {
+  return value.toLocaleString(language === "uk" ? "uk-UA" : "en-US");
 }
 
 function formatDuration(totalSeconds: number) {

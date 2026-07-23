@@ -75,28 +75,45 @@ button:disabled {
 
 .language-control {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   margin-top: -12px;
+  border: 1px solid #26313a;
+  border-radius: 8px;
+  padding: 10px;
+  background: #11171c;
 }
 
 .language-control label {
-  color: #90a0ad;
-  font-size: 12px;
+  color: #9fafba;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .language-control select {
-  min-height: 38px;
+  min-height: 34px;
+  appearance: none;
   border: 1px solid #384753;
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 34px 0 10px;
   color: #e8f0f4;
-  background: #11171c;
+  background:
+    linear-gradient(45deg, transparent 50%, #8ad7c1 50%) right 14px center / 6px 6px no-repeat,
+    linear-gradient(135deg, #8ad7c1 50%, transparent 50%) right 10px center / 6px 6px no-repeat,
+    #182027;
   outline: none;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .language-control select:focus {
   border-color: #7fd0b6;
   box-shadow: 0 0 0 3px rgba(127, 208, 182, 0.14);
+}
+
+.language-control select:hover {
+  border-color: #4d625d;
 }
 
 .new-profile-button {

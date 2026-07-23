@@ -298,17 +298,49 @@ class SyncJobManager:
 ANALYZE_PLANS = AnalyzePlanManager()
 ANALYZE_JOBS = AnalyzeJobManager(ANALYZE_PLANS)
 SYNC_JOBS = SyncJobManager(ANALYZE_PLANS)
+FALLBACK_PORTS = (8765, 18765, 28765, 38765, 48765)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765) -> None:
-    server = ThreadingHTTPServer((host, port), BackupFlowRequestHandler)
-    print(json.dumps({"status": "listening", "host": host, "port": port, "database": str(get_db_path())}))
+    server = _create_server(host, port)
+    actual_host, actual_port = server.server_address
+    print(
+        json.dumps(
+            {
+                "status": "listening",
+                "host": actual_host,
+                "port": actual_port,
+                "database": str(get_db_path()),
+            }
+        )
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print(json.dumps({"status": "stopped"}))
     finally:
         server.server_close()
+
+
+def _create_server(host: str, port: int) -> ThreadingHTTPServer:
+    candidate_ports = (port, *(candidate for candidate in FALLBACK_PORTS if candidate != port))
+    errors: list[str] = []
+    for candidate_port in candidate_ports:
+        try:
+            return ThreadingHTTPServer((host, candidate_port), BackupFlowRequestHandler)
+        except OSError as error:
+            errors.append(f"{host}:{candidate_port} -> {error}")
+            print(
+                json.dumps(
+                    {
+                        "status": "port_unavailable",
+                        "host": host,
+                        "port": candidate_port,
+                        "error": str(error),
+                    }
+                )
+            )
+    raise OSError("BackupFlow could not bind any backend port: " + "; ".join(errors))
 
 
 class BackupFlowRequestHandler(BaseHTTPRequestHandler):

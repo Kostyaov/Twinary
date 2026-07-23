@@ -90,7 +90,7 @@ type ApiError = {
   error: string;
 };
 
-const API_BASE = "http://127.0.0.1:8765";
+const API_BASE_CANDIDATES = [8765, 18765, 28765, 38765, 48765].map((port) => `http://127.0.0.1:${port}`);
 const TERMINAL_JOB_STATUSES = new Set(["completed", "completed_with_errors", "failed", "cancelled"]);
 const TERMINAL_ANALYZE_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
@@ -114,6 +114,7 @@ function App() {
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
+  const [apiBase, setApiBase] = useState(API_BASE_CANDIDATES[0]);
   const [logLines, setLogLines] = useState<string[]>(["Waiting for BackupFlow backend..."]);
 
   const selectedProfile = useMemo(
@@ -127,16 +128,18 @@ function App() {
 
   async function loadProfiles() {
     try {
-      const health = await fetch(`${API_BASE}/health`);
+      const detectedApiBase = await discoverBackend(apiBase);
+      setApiBase(detectedApiBase);
+      const health = await fetch(`${detectedApiBase}/health`);
       setBackendOnline(health.ok);
-      const response = await fetch(`${API_BASE}/profiles`);
+      const response = await fetch(`${detectedApiBase}/profiles`);
       const payload = (await response.json()) as { profiles: Profile[] };
       setProfiles(payload.profiles);
       setSelectedProfileId((current) => current ?? payload.profiles[0]?.id ?? null);
       setAnalyzeJob(null);
       setSyncResult(null);
       setSyncJob(null);
-      setLogLines([`Backend connected at ${API_BASE}`]);
+      setLogLines([`Backend connected at ${detectedApiBase}`]);
     } catch {
       setBackendOnline(false);
       setLogLines([`Backend is offline. Start it with: python3 -m backupflow serve`]);
@@ -164,7 +167,7 @@ function App() {
     }
     setIsSavingProfile(true);
     try {
-      const response = await fetch(`${API_BASE}/profiles`, {
+      const response = await fetch(`${apiBase}/profiles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(trimmedForm)
@@ -215,7 +218,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/profiles/${profile.id}`, { method: "DELETE" });
+      const response = await fetch(`${apiBase}/profiles/${profile.id}`, { method: "DELETE" });
       const payload = (await response.json()) as { deleted: true; profile_id: number } | { error: string };
       if ("error" in payload) {
         setLogLines((lines) => [payload.error, ...lines]);
@@ -263,7 +266,7 @@ function App() {
     setSyncJob(null);
     setLogLines((lines) => ["Analysis started.", ...lines]);
     try {
-      const response = await fetch(`${API_BASE}/analyze`, {
+      const response = await fetch(`${apiBase}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile_id: selectedProfileId })
@@ -285,7 +288,7 @@ function App() {
   async function pollAnalyzeJob(jobId: string) {
     while (true) {
       await delay(1000);
-      const response = await fetch(`${API_BASE}/analyze-jobs/${jobId}`);
+      const response = await fetch(`${apiBase}/analyze-jobs/${jobId}`);
       const payload = (await response.json()) as AnalyzeJob | ApiError;
       if (!isAnalyzeJob(payload)) {
         setLogLines((lines) => [payload.error, ...lines]);
@@ -321,7 +324,7 @@ function App() {
     setSyncJob(null);
     setLogLines((lines) => ["Synchronization started.", ...lines]);
     try {
-      const response = await fetch(`${API_BASE}/synchronize`, {
+      const response = await fetch(`${apiBase}/synchronize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -349,7 +352,7 @@ function App() {
   async function pollSyncJob(jobId: string) {
     while (true) {
       await delay(1000);
-      const response = await fetch(`${API_BASE}/sync-jobs/${jobId}`);
+      const response = await fetch(`${apiBase}/sync-jobs/${jobId}`);
       const payload = (await response.json()) as SyncJob | ApiError;
       if (!isSyncJob(payload)) {
         setLogLines((lines) => [payload.error, ...lines]);
@@ -386,7 +389,7 @@ function App() {
 
     try {
       if (activeAnalyzeJobId) {
-        const response = await fetch(`${API_BASE}/analyze-jobs/${activeAnalyzeJobId}/cancel`, { method: "POST" });
+        const response = await fetch(`${apiBase}/analyze-jobs/${activeAnalyzeJobId}/cancel`, { method: "POST" });
         const payload = (await response.json()) as AnalyzeJob | ApiError;
         if (isAnalyzeJob(payload)) {
           setAnalyzeJob(payload);
@@ -398,7 +401,7 @@ function App() {
       }
 
       if (activeSyncJobId) {
-        const response = await fetch(`${API_BASE}/sync-jobs/${activeSyncJobId}/cancel`, { method: "POST" });
+        const response = await fetch(`${apiBase}/sync-jobs/${activeSyncJobId}/cancel`, { method: "POST" });
         const payload = (await response.json()) as SyncJob | ApiError;
         if (isSyncJob(payload)) {
           setSyncJob(payload);
@@ -805,6 +808,36 @@ function formatDuration(totalSeconds: number) {
 
 function delay(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function discoverBackend(preferredApiBase: string) {
+  const candidates = [
+    preferredApiBase,
+    ...API_BASE_CANDIDATES.filter((candidate) => candidate !== preferredApiBase)
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetchWithTimeout(`${candidate}/health`, 900);
+      if (response.ok) {
+        return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error("BackupFlow backend is offline.");
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function isSyncJob(payload: SyncJob | ApiError): payload is SyncJob {

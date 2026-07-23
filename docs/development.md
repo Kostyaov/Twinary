@@ -128,6 +128,14 @@ POST /sync-jobs/{job_id}/cancel
 
 ## UI Поведінка
 
+Мова інтерфейсу:
+
+- UI-тексти живуть у `apps/desktop/src/i18n.ts`;
+- підтримуються `uk` і `en`;
+- вибір мови зберігається в `localStorage`;
+- backend/CLI/terminal logs не перекладаються;
+- український UI отримує `lang="uk"` і окремий font stack у `styles.css`.
+
 Під час активного аналізу або синхронізації:
 
 - кнопки `Analyze` і `Synchronize` заблоковані;

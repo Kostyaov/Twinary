@@ -150,12 +150,11 @@ start-windows.bat
 - запустить Python backend
 - відкриє Tauri desktop-вікно BackupFlow
 
-Після запуску зазвичай буде два вікна:
+Після запуску зазвичай буде одне головне вікно BackupFlow.
 
-- `BackupFlow Backend` - службове backend-вікно
-- головне вікно BackupFlow
+Python backend запускається у фоні без окремого термінального вікна.
 
-Коли завершиш роботу з програмою, закрий головне вікно BackupFlow і backend-вікно.
+Коли завершиш роботу з програмою, закрий головне вікно BackupFlow. Скрипт запуску сам зупинить backend.
 
 ## 7. Як перевірити, що `.venv` використовується
 
@@ -272,7 +271,14 @@ BackupFlow автоматично пробує резервні порти:
 48765
 ```
 
-Desktop-інтерфейс сам шукає backend на цих портах. Якщо бачиш у backend-вікні повідомлення `port_unavailable`, але потім `listening` на іншому порту, це нормально.
+Desktop-інтерфейс сам шукає backend на цих портах. Якщо в логах є повідомлення `port_unavailable`, але потім `listening` на іншому порту, це нормально.
+
+Backend-вікно приховане. Логи можна подивитися тут:
+
+```text
+Twinary\.backupflow\backend.log
+Twinary\.backupflow\backend-error.log
+```
 
 ## 12. Що не варто робити
 
